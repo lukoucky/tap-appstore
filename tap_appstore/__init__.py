@@ -240,6 +240,23 @@ def query_report(api: Api, catalog_entry):
             # write records
             for index, line in enumerate(rep, start=1):
                 data = line
+
+                # TODO: Following three ugly hot-fixes should be properly fixed
+
+                # purchase_date in subscriber_report is only available for refunds and target crashes when the date is empty
+                # TODO: Find better way to fix this
+                if data.get('purchase_date', None) == '':
+                    data['purchase_date'] = '2021-01-01'
+
+                # begin_date and end_date in sales_report are in format MM/DD/YYYY but this format is not respected by the databases
+                # so this transforms it into YYYY-MM-DD
+                if 'begin_date' in data:
+                    data['begin_date'] = data['begin_date'][6:]+'-'+data['begin_date'][:2]+'-'+data['begin_date'][3:5]
+
+                if 'end_date' in data:
+                    data['end_date'] = data['end_date'][6:]+'-'+data['end_date'][:2]+'-'+data['end_date'][3:5]
+
+                
                 data['_line_id'] = index
                 data['_time_extracted'] = extraction_time.strftime(TIME_EXTRACTED_FORMAT)
                 data['_api_report_date'] = report_date
