@@ -28,6 +28,8 @@ LOGGER = singer.get_logger()
 BOOKMARK_DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 TIME_EXTRACTED_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
+DATE_FORMATS = [BOOKMARK_DATE_FORMAT, TIME_EXTRACTED_FORMAT, '%Y-%m-%dT%H:%M:%S']
+
 API_REQUEST_FIELDS = {
     'subscription_event_report': {
         'reportType': 'SUBSCRIPTION_EVENT',
@@ -112,11 +114,26 @@ def load_schemas():
     return schemas
 
 
+def get_date(schema_name):
+    datetime_string = get_bookmark(schema_name)
+    for date_format in DATE_FORMATS:
+        try:
+            report_date = datetime.strptime(datetime_string, date_format)
+        except ValueError:
+            continue
+        else:
+            break
+    else:
+        raise ValueError(f"Time data '{datetime_string}' does not mach any allowed format.")
+
+    return report_date
+
+
 def discover(api: Api):
     raw_schemas = load_schemas()
     streams = []
     for schema_name, schema in raw_schemas.items():
-        report_date = datetime.strptime(get_bookmark(schema_name), "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d")
+        report_date = get_date(schema_name).strftime("%Y-%m-%d")
         filters = get_api_request_fields(report_date, schema_name)
 
         report = _attempt_download_report(api, filters)
@@ -201,7 +218,7 @@ def query_report(api: Api, catalog_entry):
     stream_schema = catalog_entry['schema']
 
     # get bookmark from when data will be pulled
-    bookmark = datetime.strptime(get_bookmark(stream_name), "%Y-%m-%dT%H:%M:%SZ").astimezone()
+    bookmark = get_date(stream_name).astimezone()
     delta = timedelta(days=1)
     extraction_time = singer.utils.now().astimezone()
     iterator = bookmark
